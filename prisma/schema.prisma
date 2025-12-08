@@ -1,0 +1,69 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// 1. EL USUARIO (El dueño de los datos)
+model User {
+  id        Int      @id @default(autoincrement()) // ID numérico único (1, 2, 3...)
+  email     String   @unique                       // No puede haber dos usuarios con el mismo email
+  password  String                                 // Aquí guardaremos la contraseña encriptada
+  name      String?                                // El signo ? significa que es opcional
+  createdAt DateTime @default(now())               // Guarda la fecha de registro automáticamente
+  
+  // Relaciones (El usuario tiene muchas...)
+  categories   Category[]    // Un usuario tiene muchas categorías
+  transactions Transaction[] // Un usuario tiene muchas transacciones
+}
+
+// 2. LAS CATEGORÍAS (Comida, Carro, Sueldo...)
+model Category {
+  id     Int    @id @default(autoincrement())
+  name   String // Ej: "Comida"
+  icon   String? // Podríamos guardar un emoji o link a un ícono
+  
+  // Relación con Usuario (Cada categoría pertenece a UN usuario)
+  userId Int
+  user   User @relation(fields: [userId], references: [id])
+  
+  // Relación con Transacciones (Una categoría se usa en muchas transacciones)
+  transactions Transaction[]
+
+  // Restricción única: Un usuario no puede tener dos categorías con el mismo nombre
+  @@unique([name, userId]) 
+}
+
+// 3. LAS TRANSACCIONES (El gasto o ingreso real)
+model Transaction {
+  id        Int      @id @default(autoincrement())
+  amount    Decimal  @db.Decimal(10, 2) // Usamos Decimal para dinero, NUNCA Float (por precisión)
+  date      DateTime // Aquí guardamos la fecha exacta (el mes se calcula solo)
+  concept   String   // Ej: "Caffenio", "Gasolina"
+  
+  // Tipo de movimiento (Usamos un Enum, ver abajo)
+  type      TransactionType
+
+  // Relaciones
+  categoryId Int
+  category   Category @relation(fields: [categoryId], references: [id])
+  
+  userId     Int
+  user       User     @relation(fields: [userId], references: [id])
+}
+
+// 4. ENUMERADORES (Listas cerradas de opciones)
+// Esto evita que escribas "Ingresos" con s y "Ingreso" sin s. Solo permite estas opciones.
+enum TransactionType {
+  INCOME  // Ingreso
+  EXPENSE // Egreso
+}

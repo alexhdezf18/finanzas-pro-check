@@ -17,5 +17,11 @@
   "bugs": {
     "url": "https://github.com/alexhdezf18/finanzas-pro-check/issues"
   },
-  "homepage": "https://github.com/alexhdezf18/finanzas-pro-check#readme"
+  "homepage": "https://github.com/alexhdezf18/finanzas-pro-check#readme",
+  "devDependencies": {
+    "@types/node": "^24.10.1",
+    "prisma": "^7.1.0",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.9.3"
+  }
 }
