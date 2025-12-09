@@ -20,8 +20,15 @@
   "homepage": "https://github.com/alexhdezf18/finanzas-pro-check#readme",
   "devDependencies": {
     "@types/node": "^24.10.1",
-    "prisma": "^7.1.0",
+    "prisma": "^5.22.0",
     "ts-node": "^10.9.2",
+    "tsx": "^4.21.0",
     "typescript": "^5.9.3"
+  },
+  "prisma": {
+    "seed": "ts-node prisma/seed.ts"
+  },
+  "dependencies": {
+    "@prisma/client": "^5.22.0"
   }
 }
