@@ -5,11 +5,13 @@ import { ValidationPipe } from '@nestjs/common'; // <--- Importar
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
 
-  // Activar las validaciones globales
+  // 1. HABILITAR CORS (La llave de paso)
+  app.enableCors();
+
   app.useGlobalPipes(
     new ValidationPipe({
-      whitelist: true, // Elimina datos extra que no estén en el DTO (Seguridad)
-      forbidNonWhitelisted: true, // Lanza error si envían basura extra
+      whitelist: true,
+      forbidNonWhitelisted: true,
     }),
   );
 
