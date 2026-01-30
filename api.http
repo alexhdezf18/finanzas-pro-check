@@ -1,5 +1,20 @@
 @Host = http://localhost:3000
 
+### Crear Gasto (Asegúrate que categoryId exista)
+POST {{Host}}/transactions
+Content-Type: application/json
+
+{
+  "amount": 150.50,
+  "concept": "Hamburguesas",
+  "date": "2026-01-30T20:00:00Z",
+  "type": "EXPENSE",
+  "categoryId": 3
+}
+
+### Ver Transacciones
+GET {{Host}}/transactions
+
 ### 1. Obtener todas las categorías
 GET {{Host}}/categories
 
