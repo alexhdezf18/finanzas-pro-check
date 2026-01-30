@@ -1,4 +1,8 @@
-import { Injectable } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  InternalServerErrorException,
+} from '@nestjs/common';
 import { CreateTransactionDto } from './dto/create-transaction.dto';
 import { UpdateTransactionDto } from './dto/update-transaction.dto';
 import { PrismaService } from 'src/prisma/prisma.service'; // <--- Importar Prisma
@@ -8,21 +12,38 @@ export class TransactionsService {
   constructor(private prisma: PrismaService) {}
 
   async create(createTransactionDto: CreateTransactionDto) {
-    const { categoryId, ...rest } = createTransactionDto;
+    const userId = 1; // Hardcodeado por ahora
 
-    return this.prisma.transaction.create({
-      data: {
-        ...rest, // amount, concept, date, type
-        user: { connect: { id: 1 } }, // <--- TRUCO TEMPORAL: Hardcodeamos al usuario 1
-        category: { connect: { id: categoryId } },
-      },
-    });
+    try {
+      return await this.prisma.transaction.create({
+        data: {
+          amount: createTransactionDto.amount,
+          concept: createTransactionDto.concept,
+          date: new Date(createTransactionDto.date), // Conversión importante
+          type: createTransactionDto.type,
+          categoryId: createTransactionDto.categoryId,
+          userId: userId,
+        },
+      });
+    } catch (error) {
+      // Manejamos el error P2003 específicamente
+      if (error.code === 'P2003') {
+        throw new NotFoundException(
+          `No se pudo crear la transacción: La categoría (ID ${createTransactionDto.categoryId}) o el usuario no existen.`,
+        );
+      }
+
+      // Si es otro error, que lo lance normal
+      throw error;
+    }
   }
 
   findAll() {
+    const userId = 1;
     return this.prisma.transaction.findMany({
-      include: { category: true }, // <--- Traemos el nombre de la categoría, no solo el ID
-      orderBy: { date: 'desc' }, // Ordenar por fecha (más reciente primero)
+      where: { userId },
+      include: { category: true }, // ¡Truco! Traemos el nombre de la categoría de una vez
+      orderBy: { date: 'desc' }, // Las más recientes primero
     });
   }
 
@@ -34,7 +55,15 @@ export class TransactionsService {
     return `This action updates a #${id} transaction`;
   }
 
-  remove(id: number) {
+  async remove(id: number) {
+    const userId = 1;
+    // Verificar que sea de este usuario antes de borrar
+    const transaction = await this.prisma.transaction.findFirst({
+      where: { id, userId },
+    });
+
+    if (!transaction) throw new NotFoundException('Transacción no encontrada');
+
     return this.prisma.transaction.delete({ where: { id } });
   }
 }

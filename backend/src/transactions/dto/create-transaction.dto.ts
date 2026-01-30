@@ -1,29 +1,28 @@
 import {
-  IsDateString,
-  IsEnum,
   IsNotEmpty,
   IsNumber,
-  IsPositive,
   IsString,
+  IsPositive,
+  IsEnum,
+  IsDateString,
 } from 'class-validator';
-// Un truco: Aunque en Prisma definimos el Enum, aquí lo redefinimos o lo importamos
-// Para simplificar por hoy, usaremos strings validados.
+import { TransactionType } from '@prisma/client';
 
 export class CreateTransactionDto {
   @IsNumber()
-  @IsPositive() // No permitimos gastos negativos ni cero
+  @IsPositive()
   amount: number;
 
   @IsString()
   @IsNotEmpty()
-  concept: string; // Ej: "Hamburguesa"
+  concept: string;
 
-  @IsDateString()
-  date: string; // Esperamos formato ISO: "2025-04-02T10:00:00Z"
+  @IsDateString() // Valida formato ISO-8601 (ej: "2026-01-30T10:00:00Z")
+  date: string;
 
-  @IsEnum(['INCOME', 'EXPENSE'])
-  type: 'INCOME' | 'EXPENSE';
+  @IsEnum(TransactionType)
+  type: TransactionType;
 
   @IsNumber()
-  categoryId: number; // El ID de la categoría (Ej: 3 para Comida)
+  categoryId: number;
 }
