@@ -11,7 +11,6 @@ import * as categoriesApi from "./api/categories";
 import * as transactionsApi from "./api/transactions";
 import type { Category, Transaction } from "./types";
 
-// Colores para la gráfica (puedes cambiarlos)
 const COLORS = [
   "#0088FE",
   "#00C49F",
@@ -26,11 +25,13 @@ function App() {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // Form states
+  // --- ESTADOS DEL FORMULARIO ---
   const [amount, setAmount] = useState("");
   const [concept, setConcept] = useState("");
   const [selectedCatId, setSelectedCatId] = useState<number | "">("");
   const [type, setType] = useState<"EXPENSE" | "INCOME">("EXPENSE");
+  // 1. Nuevo estado para la fecha (YYYY-MM-DD)
+  const [date, setDate] = useState(new Date().toISOString().split("T")[0]);
 
   useEffect(() => {
     loadData();
@@ -52,7 +53,6 @@ function App() {
   };
 
   // --- 🧠 CÁLCULOS MATEMÁTICOS ---
-  // Usamos useMemo para que no recalcule si no cambian las transacciones
   const { totalIncome, totalExpense, balance, chartData } = useMemo(() => {
     let income = 0;
     let expense = 0;
@@ -64,13 +64,11 @@ function App() {
         income += val;
       } else {
         expense += val;
-        // Agrupar para la gráfica
         const catName = t.category?.name || "Otros";
         expensesByCategory[catName] = (expensesByCategory[catName] || 0) + val;
       }
     });
 
-    // Convertir objeto a array para Recharts
     const data = Object.entries(expensesByCategory).map(([name, value]) => ({
       name,
       value,
@@ -87,18 +85,24 @@ function App() {
   // --- MANEJADORES ---
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedCatId || !amount || !concept) return;
+    // 2. Validamos que exista la fecha
+    if (!selectedCatId || !amount || !concept || !date) return;
+
     try {
       const newTx = await transactionsApi.createTransaction({
         amount: parseFloat(amount),
         concept,
-        date: new Date().toISOString(),
+        date: new Date(date).toISOString(), // 3. Enviamos la fecha real seleccionada
         type,
         categoryId: Number(selectedCatId),
       });
       setTransactions([newTx, ...transactions]);
+
+      // Limpiar form
       setAmount("");
       setConcept("");
+      // Reseteamos a la fecha de hoy por comodidad
+      setDate(new Date().toISOString().split("T")[0]);
     } catch (error) {
       alert("Error al guardar");
     }
@@ -189,6 +193,15 @@ function App() {
             <div className="bg-white p-6 rounded-xl shadow-sm">
               <h2 className="font-bold mb-4">Nuevo Movimiento</h2>
               <form onSubmit={handleSave} className="space-y-3">
+                {/* 4. Selector de Fecha */}
+                <input
+                  type="date"
+                  required
+                  className="w-full p-2 border rounded bg-gray-50 font-medium text-gray-700"
+                  value={date}
+                  onChange={(e) => setDate(e.target.value)}
+                />
+
                 <div className="flex gap-2">
                   <button
                     type="button"
@@ -233,7 +246,7 @@ function App() {
                 </select>
                 <button
                   disabled={!amount || !selectedCatId}
-                  className="w-full bg-black text-white py-2 rounded font-bold disabled:opacity-50"
+                  className="w-full bg-black text-white py-2 rounded font-bold disabled:opacity-50 hover:bg-gray-800 transition"
                 >
                   Guardar
                 </button>
@@ -241,7 +254,7 @@ function App() {
             </div>
           </div>
 
-          {/* COLUMNA DERECHA: Historial (Más ancha ahora) */}
+          {/* COLUMNA DERECHA: Historial */}
           <div className="lg:col-span-2">
             <h2 className="text-xl font-bold mb-4">Historial de Movimientos</h2>
             <div className="space-y-3">
