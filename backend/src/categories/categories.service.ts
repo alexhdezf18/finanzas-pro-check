@@ -23,6 +23,7 @@ export class CategoriesService {
           name: createCategoryDto.name,
           icon: createCategoryDto.icon,
           userId: userId,
+          budgetLimit: createCategoryDto.budgetLimit || 0,
         },
       });
     } catch (error) {

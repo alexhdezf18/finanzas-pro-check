@@ -1,4 +1,10 @@
-import { IsString, IsOptional, IsNotEmpty } from 'class-validator';
+import {
+  IsString,
+  IsOptional,
+  IsNotEmpty,
+  IsNumber,
+  Min,
+} from 'class-validator';
 
 export class CreateCategoryDto {
   @IsString()
@@ -8,4 +14,9 @@ export class CreateCategoryDto {
   @IsString()
   @IsOptional()
   icon?: string;
+
+  @IsNumber()
+  @IsOptional()
+  @Min(0)
+  budgetLimit?: number;
 }

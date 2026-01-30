@@ -1,10 +1,11 @@
-import client from "./axios"; // Asumo que aquí exportas tu instancia de axios configurada
+import client from "./axios";
 import type { Category } from "../types";
 
 // Definimos qué datos necesitamos para crear una categoría
 interface CreateCategoryData {
   name: string;
   icon?: string;
+  budgetLimit?: number;
 }
 
 // Obtener todas
@@ -21,7 +22,7 @@ export const createCategory = async (
   return response.data;
 };
 
-// Eliminar (ya que estamos aquí, dejémoslo listo)
+// Eliminar
 export const deleteCategory = async (id: number): Promise<void> => {
   await client.delete(`/categories/${id}`);
 };

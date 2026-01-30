@@ -28,18 +28,15 @@ model User {
 
 // 2. LAS CATEGORÍAS (Comida, Carro, Sueldo...)
 model Category {
-  id     Int    @id @default(autoincrement())
-  name   String // Ej: "Comida"
-  icon   String? // Podríamos guardar un emoji o link a un ícono
+  id    Int     @id @default(autoincrement())
+  name  String
+  icon  String?
+  budgetLimit Decimal @default(0) @db.Decimal(10, 2) 
   
-  // Relación con Usuario (Cada categoría pertenece a UN usuario)
   userId Int
   user   User @relation(fields: [userId], references: [id])
-  
-  // Relación con Transacciones (Una categoría se usa en muchas transacciones)
   transactions Transaction[]
 
-  // Restricción única: Un usuario no puede tener dos categorías con el mismo nombre
   @@unique([name, userId]) 
 }
 

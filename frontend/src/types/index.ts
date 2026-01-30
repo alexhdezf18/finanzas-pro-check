@@ -2,6 +2,7 @@ export interface Category {
   id: number;
   name: string;
   icon?: string;
+  budgetLimit?: number;
 }
 
 export interface Transaction {

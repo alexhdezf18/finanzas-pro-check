@@ -39,7 +39,7 @@ function App() {
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // Estados del Formulario
+  // --- ESTADOS DE TRANSACCIONES ---
   const [amount, setAmount] = useState("");
   const [concept, setConcept] = useState("");
   const [selectedCatId, setSelectedCatId] = useState<number | "">("");
@@ -47,8 +47,13 @@ function App() {
   const [date, setDate] = useState(new Date().toISOString().split("T")[0]);
   const [editingId, setEditingId] = useState<number | null>(null);
 
-  // 🔥 NUEVO: Estados para el Filtro de Fecha
-  const [filterMonth, setFilterMonth] = useState(new Date().getMonth()); // 0 = Enero
+  // --- ESTADOS DE CATEGORÍAS (NUEVO) ---
+  const [newCatName, setNewCatName] = useState("");
+  const [newCatIcon, setNewCatIcon] = useState("💰");
+  const [newCatLimit, setNewCatLimit] = useState(""); // Para el presupuesto
+
+  // --- FILTROS ---
+  const [filterMonth, setFilterMonth] = useState(new Date().getMonth());
   const [filterYear, setFilterYear] = useState(new Date().getFullYear());
 
   useEffect(() => {
@@ -70,19 +75,17 @@ function App() {
     }
   };
 
-  // 🔥 NUEVO: Primero filtramos las transacciones según lo que el usuario eligió
+  // 1. Filtrar transacciones por fecha
   const filteredTransactions = useMemo(() => {
     return transactions.filter((t) => {
-      // Ajustamos la fecha para evitar problemas de zona horaria simples
       const tDate = new Date(t.date);
-      // Ojo: getMonth() devuelve 0-11, getFullYear() el año completo
       return (
         tDate.getMonth() === filterMonth && tDate.getFullYear() === filterYear
       );
     });
   }, [transactions, filterMonth, filterYear]);
 
-  // 🔥 ACTUALIZADO: Ahora calculamos los totales usando 'filteredTransactions' en vez de todas
+  // 2. Calcular Totales
   const { totalIncome, totalExpense, balance, chartData } = useMemo(() => {
     let income = 0;
     let expense = 0;
@@ -109,9 +112,41 @@ function App() {
       balance: income - expense,
       chartData: data,
     };
-  }, [filteredTransactions]); // Dependencia actualizada
+  }, [filteredTransactions]);
 
-  // ... (Funciones handleEditClick, handleCancelEdit igual que antes)
+  // --- MANEJADORES DE CATEGORÍAS (NUEVO) ---
+  const handleCreateCategory = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newCatName.trim()) return;
+
+    try {
+      const newCat = await categoriesApi.createCategory({
+        name: newCatName,
+        icon: newCatIcon,
+        budgetLimit: parseFloat(newCatLimit) || 0,
+      });
+      setCategories([...categories, newCat]);
+      setNewCatName("");
+      setNewCatIcon("💰");
+      setNewCatLimit("");
+    } catch (error) {
+      alert("Error creando categoría");
+    }
+  };
+
+  const handleDeleteCategory = async (id: number) => {
+    if (!confirm("¿Eliminar categoría? Se borrarán sus transacciones.")) return;
+    try {
+      await categoriesApi.deleteCategory(id);
+      setCategories(categories.filter((c) => c.id !== id));
+      // También limpiamos las transacciones locales asociadas para evitar errores visuales
+      setTransactions(transactions.filter((t) => t.categoryId !== id));
+    } catch (error) {
+      console.error(error);
+    }
+  };
+
+  // --- MANEJADORES DE TRANSACCIONES ---
   const handleEditClick = (t: Transaction) => {
     setEditingId(t.id);
     setAmount(String(t.amount));
@@ -135,7 +170,6 @@ function App() {
     if (!selectedCatId || !amount || !concept || !date) return;
 
     const dataPayload: CreateTransactionData = {
-      // Tipado explícito ayuda
       amount: parseFloat(amount),
       concept,
       date: new Date(date).toISOString(),
@@ -178,8 +212,6 @@ function App() {
         {/* ENCABEZADO Y FILTROS */}
         <div className="flex flex-col md:flex-row justify-between items-center gap-4">
           <h1 className="text-3xl font-bold text-gray-800">Panel Financiero</h1>
-
-          {/* 🔥 NUEVO: Selector de Fecha */}
           <div className="flex gap-2 bg-white p-2 rounded-lg shadow-sm">
             <select
               className="bg-transparent font-medium text-gray-700 outline-none cursor-pointer"
@@ -205,28 +237,22 @@ function App() {
           </div>
         </div>
 
-        {/* RESUMEN (Ahora muestra datos filtrados) */}
+        {/* RESUMEN */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div className="bg-white p-6 rounded-xl shadow-sm border-l-4 border-green-500">
-            <p className="text-gray-500 text-sm">
-              Ingresos ({MONTHS[filterMonth]})
-            </p>
+            <p className="text-gray-500 text-sm">Ingresos</p>
             <p className="text-2xl font-bold text-green-600">
               +${totalIncome.toFixed(2)}
             </p>
           </div>
           <div className="bg-white p-6 rounded-xl shadow-sm border-l-4 border-red-500">
-            <p className="text-gray-500 text-sm">
-              Gastos ({MONTHS[filterMonth]})
-            </p>
+            <p className="text-gray-500 text-sm">Gastos</p>
             <p className="text-2xl font-bold text-red-600">
               -${totalExpense.toFixed(2)}
             </p>
           </div>
           <div className="bg-white p-6 rounded-xl shadow-sm border-l-4 border-blue-600">
-            <p className="text-gray-500 text-sm">
-              Balance ({MONTHS[filterMonth]})
-            </p>
+            <p className="text-gray-500 text-sm">Balance</p>
             <p
               className={`text-2xl font-bold ${balance >= 0 ? "text-blue-600" : "text-red-600"}`}
             >
@@ -235,12 +261,118 @@ function App() {
           </div>
         </div>
 
+        {/* --- SECCIÓN NUEVA: PRESUPUESTOS Y CATEGORÍAS --- */}
+        <div className="space-y-4">
+          <div className="flex justify-between items-end">
+            <h2 className="text-xl font-bold text-gray-700">
+              Presupuestos de {MONTHS[filterMonth]}
+            </h2>
+
+            {/* Formulario rápido para crear categoría */}
+            <form
+              onSubmit={handleCreateCategory}
+              className="flex gap-2 text-sm"
+            >
+              <select
+                value={newCatIcon}
+                onChange={(e) => setNewCatIcon(e.target.value)}
+                className="p-2 border rounded"
+              >
+                <option value="💰">💰</option>
+                <option value="🍔">🍔</option>
+                <option value="🚗">🚗</option>
+                <option value="🏠">🏠</option>
+                <option value="🎮">🎮</option>
+              </select>
+              <input
+                type="text"
+                placeholder="Nueva Categoría"
+                value={newCatName}
+                onChange={(e) => setNewCatName(e.target.value)}
+                className="p-2 border rounded w-32 md:w-48"
+                required
+              />
+              <input
+                type="number"
+                placeholder="Tope $"
+                value={newCatLimit}
+                onChange={(e) => setNewCatLimit(e.target.value)}
+                className="p-2 border rounded w-20"
+              />
+              <button
+                type="submit"
+                className="bg-blue-600 text-white px-3 py-2 rounded font-bold hover:bg-blue-700"
+              >
+                +
+              </button>
+            </form>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+            {categories.map((cat) => {
+              // 1. Calculamos lo gastado en esta categoría EN EL MES SELECCIONADO
+              const spent = filteredTransactions
+                .filter((t) => t.categoryId === cat.id && t.type === "EXPENSE")
+                .reduce((acc, curr) => acc + Number(curr.amount), 0);
+
+              const limit = Number(cat.budgetLimit) || 0;
+              const percentage =
+                limit > 0 ? Math.min((spent / limit) * 100, 100) : 0;
+
+              // Color dinámico de la barra
+              let barColor = "bg-green-500";
+              if (percentage > 75) barColor = "bg-yellow-500";
+              if (percentage >= 100) barColor = "bg-red-500";
+
+              return (
+                <div
+                  key={cat.id}
+                  className="bg-white p-4 rounded-lg shadow-sm border border-gray-100 relative group"
+                >
+                  <div className="flex justify-between items-start mb-2">
+                    <div className="flex items-center gap-2">
+                      <span className="text-2xl">{cat.icon || "📁"}</span>
+                      <div className="flex-1 min-w-0">
+                        <p className="font-bold text-gray-800 truncate">
+                          {cat.name}
+                        </p>
+                        {limit > 0 ? (
+                          <p className="text-xs text-gray-500">
+                            ${spent.toFixed(0)} / ${limit.toFixed(0)}
+                          </p>
+                        ) : (
+                          <p className="text-xs text-gray-400">Sin límite</p>
+                        )}
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => handleDeleteCategory(cat.id)}
+                      className="text-gray-300 hover:text-red-500 text-lg leading-none opacity-0 group-hover:opacity-100 transition"
+                    >
+                      ×
+                    </button>
+                  </div>
+                  {limit > 0 && (
+                    <div className="w-full bg-gray-100 rounded-full h-2 mt-1">
+                      <div
+                        className={`h-2 rounded-full transition-all duration-500 ${barColor}`}
+                        style={{ width: `${percentage}%` }}
+                      ></div>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* --- GRÁFICA Y TRANSACCIONES --- */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           {/* IZQUIERDA: GRÁFICA + FORMULARIO */}
           <div className="lg:col-span-1 space-y-6">
             <div className="bg-white p-6 rounded-xl shadow-sm h-72 flex flex-col">
               <h3 className="font-bold mb-2 text-gray-700 text-center text-sm">
-                Gastos de {MONTHS[filterMonth]}
+                Distribución de Gastos
               </h3>
               {chartData.length > 0 ? (
                 <ResponsiveContainer width="100%" height="100%">
@@ -273,7 +405,7 @@ function App() {
               )}
             </div>
 
-            {/* FORMULARIO (Sin cambios mayores) */}
+            {/* FORMULARIO TRANSACCIÓN */}
             <div
               className={`bg-white p-6 rounded-xl shadow-sm border-2 ${editingId ? "border-yellow-400" : "border-transparent"} transition-colors`}
             >
@@ -298,6 +430,7 @@ function App() {
                   value={date}
                   onChange={(e) => setDate(e.target.value)}
                 />
+
                 <div className="flex gap-2">
                   <button
                     type="button"
@@ -350,13 +483,12 @@ function App() {
             </div>
           </div>
 
-          {/* DERECHA: HISTORIAL FILTRADO */}
+          {/* DERECHA: HISTORIAL */}
           <div className="lg:col-span-2">
             <h2 className="text-xl font-bold mb-4">
               Movimientos de {MONTHS[filterMonth]}
             </h2>
             <div className="space-y-3">
-              {/* OJO: Aquí iteramos sobre 'filteredTransactions', no sobre todas */}
               {filteredTransactions.map((t) => (
                 <div
                   key={t.id}
