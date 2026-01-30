@@ -6,9 +6,10 @@ export interface Category {
 
 export interface Transaction {
   id: number;
-  amount: number; // O string, dependiendo de cómo lo mande NestJS (Prisma Decimal suele ser string en JSON)
+  amount: number;
   concept: string;
   date: string;
   type: "INCOME" | "EXPENSE";
-  category?: Category; // Puede venir o no
+  categoryId: number;
+  category?: Category;
 }
