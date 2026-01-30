@@ -51,8 +51,27 @@ export class TransactionsService {
     return this.prisma.transaction.findUnique({ where: { id } });
   }
 
-  update(id: number, updateTransactionDto: UpdateTransactionDto) {
-    return `This action updates a #${id} transaction`;
+  async update(id: number, updateTransactionDto: UpdateTransactionDto) {
+    const userId = 1; // Hardcodeado
+
+    // 1. Verificar que la transacción exista y sea de este usuario
+    const transaction = await this.prisma.transaction.findFirst({
+      where: { id, userId },
+    });
+
+    if (!transaction) throw new NotFoundException('Transacción no encontrada');
+
+    // 2. Si vienen fechas, asegúrate de convertirlas a objeto Date
+    const dataToUpdate: any = { ...updateTransactionDto };
+    if (dataToUpdate.date) {
+      dataToUpdate.date = new Date(dataToUpdate.date);
+    }
+
+    // 3. Actualizar
+    return this.prisma.transaction.update({
+      where: { id },
+      data: dataToUpdate,
+    });
   }
 
   async remove(id: number) {

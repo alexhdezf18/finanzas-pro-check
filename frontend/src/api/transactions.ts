@@ -1,13 +1,5 @@
 import client from "./axios";
-import type { Transaction } from "../types";
-
-interface CreateTransactionData {
-  amount: number;
-  concept: string;
-  date: string;
-  type: "INCOME" | "EXPENSE";
-  categoryId: number;
-}
+import type { Transaction, CreateTransactionData } from "../types";
 
 export const getTransactions = async (): Promise<Transaction[]> => {
   const response = await client.get("/transactions");
@@ -18,6 +10,14 @@ export const createTransaction = async (
   data: CreateTransactionData,
 ): Promise<Transaction> => {
   const response = await client.post("/transactions", data);
+  return response.data;
+};
+
+export const updateTransaction = async (
+  id: number,
+  data: Partial<CreateTransactionData>,
+): Promise<Transaction> => {
+  const response = await client.patch(`/transactions/${id}`, data);
   return response.data;
 };
 
