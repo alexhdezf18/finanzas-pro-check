@@ -1,14 +1,33 @@
-### Obtener todas las transacciones
-GET http://localhost:3000/transactions
+@Host = http://localhost:3000
 
-### Crear una transacción de prueba (Gasto)
-POST http://localhost:3000/transactions
+### 1. Obtener todas las categorías
+GET {{Host}}/categories
+
+### 2. Crear una nueva categoría
+POST {{Host}}/categories
 Content-Type: application/json
 
 {
-  "amount": 250.50,
-  "concept": "Cena tacos",
-  "date": "2025-04-02T20:00:00.000Z",
-  "type": "EXPENSE",
-  "categoryId": 3
+  "name": "Videojuegos",
+  "icon": "🎮"
 }
+
+### 3. Intentar crear una duplicada (Para probar el error 409)
+POST {{Host}}/categories
+Content-Type: application/json
+
+{
+  "name": "Videojuegos",
+  "icon": "🎮"
+}
+
+### 4. Actualizar una categoría (Cambia el ID '1' por el que quieras probar)
+PATCH {{Host}}/categories/1
+Content-Type: application/json
+
+{
+  "name": "Gaming Setup"
+}
+
+### 5. Borrar una categoría
+DELETE {{Host}}/categories/1

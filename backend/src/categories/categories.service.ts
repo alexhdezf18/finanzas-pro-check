@@ -1,6 +1,11 @@
-import { Injectable, ConflictException } from '@nestjs/common';
+import {
+  Injectable,
+  ConflictException,
+  NotFoundException,
+} from '@nestjs/common';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { CreateCategoryDto } from './dto/create-category.dto';
+import { UpdateCategoryDto } from './dto/update-category.dto';
 import { Prisma } from '@prisma/client';
 
 @Injectable()
@@ -41,15 +46,44 @@ export class CategoriesService {
     });
   }
 
-  findOne(id: number) {
-    return `This action returns a #${id} category`;
+  async findOne(id: number) {
+    const userId = 1; // Hardcoded temporalmente
+
+    const category = await this.prisma.category.findFirst({
+      where: {
+        id: id,
+        userId: userId,
+      },
+    });
+
+    if (!category) {
+      // Si no existe o no es de este usuario, lanzamos error 404
+      throw new NotFoundException(`La categoría #${id} no se encontró`);
+    }
+
+    return category;
   }
 
-  update(id: number, updateCategoryDto: any) {
-    return `This action updates a #${id} category`;
+  async update(id: number, updateCategoryDto: UpdateCategoryDto) {
+    // Primero verificamos que la categoría exista y pertenezca al usuario
+    await this.findOne(id);
+
+    // Si pasa la verificación, actualizamos
+    return this.prisma.category.update({
+      where: { id: id },
+      data: updateCategoryDto,
+    });
   }
 
-  remove(id: number) {
-    return `This action removes a #${id} category`;
+  async remove(id: number) {
+    // Primero verificamos que la categoría exista y pertenezca al usuario
+    await this.findOne(id);
+
+    // OJO: Esto fallará si la categoría ya tiene transacciones asociadas
+    // (Por la llave foránea en la base de datos).
+    // Para el MVP está bien, luego podemos manejar ese error.
+    return this.prisma.category.delete({
+      where: { id: id },
+    });
   }
 }
