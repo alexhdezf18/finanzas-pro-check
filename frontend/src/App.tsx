@@ -9,7 +9,7 @@ import {
 } from "recharts";
 import * as categoriesApi from "./api/categories";
 import * as transactionsApi from "./api/transactions";
-import type { Category, Transaction } from "./types";
+import type { Category, Transaction, CreateTransactionData } from "./types";
 
 const COLORS = [
   "#0088FE",
@@ -19,19 +19,37 @@ const COLORS = [
   "#8884d8",
   "#82ca9d",
 ];
+const MONTHS = [
+  "Enero",
+  "Febrero",
+  "Marzo",
+  "Abril",
+  "Mayo",
+  "Junio",
+  "Julio",
+  "Agosto",
+  "Septiembre",
+  "Octubre",
+  "Noviembre",
+  "Diciembre",
+];
 
 function App() {
   const [categories, setCategories] = useState<Category[]>([]);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // --- ESTADOS DEL FORMULARIO ---
+  // Estados del Formulario
   const [amount, setAmount] = useState("");
   const [concept, setConcept] = useState("");
   const [selectedCatId, setSelectedCatId] = useState<number | "">("");
   const [type, setType] = useState<"EXPENSE" | "INCOME">("EXPENSE");
-  // 1. Nuevo estado para la fecha (YYYY-MM-DD)
   const [date, setDate] = useState(new Date().toISOString().split("T")[0]);
+  const [editingId, setEditingId] = useState<number | null>(null);
+
+  // 🔥 NUEVO: Estados para el Filtro de Fecha
+  const [filterMonth, setFilterMonth] = useState(new Date().getMonth()); // 0 = Enero
+  const [filterYear, setFilterYear] = useState(new Date().getFullYear());
 
   useEffect(() => {
     loadData();
@@ -52,13 +70,25 @@ function App() {
     }
   };
 
-  // --- 🧠 CÁLCULOS MATEMÁTICOS ---
+  // 🔥 NUEVO: Primero filtramos las transacciones según lo que el usuario eligió
+  const filteredTransactions = useMemo(() => {
+    return transactions.filter((t) => {
+      // Ajustamos la fecha para evitar problemas de zona horaria simples
+      const tDate = new Date(t.date);
+      // Ojo: getMonth() devuelve 0-11, getFullYear() el año completo
+      return (
+        tDate.getMonth() === filterMonth && tDate.getFullYear() === filterYear
+      );
+    });
+  }, [transactions, filterMonth, filterYear]);
+
+  // 🔥 ACTUALIZADO: Ahora calculamos los totales usando 'filteredTransactions' en vez de todas
   const { totalIncome, totalExpense, balance, chartData } = useMemo(() => {
     let income = 0;
     let expense = 0;
     const expensesByCategory: Record<string, number> = {};
 
-    transactions.forEach((t) => {
+    filteredTransactions.forEach((t) => {
       const val = Number(t.amount);
       if (t.type === "INCOME") {
         income += val;
@@ -73,37 +103,62 @@ function App() {
       name,
       value,
     }));
-
     return {
       totalIncome: income,
       totalExpense: expense,
       balance: income - expense,
       chartData: data,
     };
-  }, [transactions]);
+  }, [filteredTransactions]); // Dependencia actualizada
 
-  // --- MANEJADORES ---
+  // ... (Funciones handleEditClick, handleCancelEdit igual que antes)
+  const handleEditClick = (t: Transaction) => {
+    setEditingId(t.id);
+    setAmount(String(t.amount));
+    setConcept(t.concept);
+    setSelectedCatId(t.categoryId);
+    setType(t.type);
+    setDate(new Date(t.date).toISOString().split("T")[0]);
+  };
+
+  const handleCancelEdit = () => {
+    setEditingId(null);
+    setAmount("");
+    setConcept("");
+    setSelectedCatId("");
+    setType("EXPENSE");
+    setDate(new Date().toISOString().split("T")[0]);
+  };
+
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
-    // 2. Validamos que exista la fecha
     if (!selectedCatId || !amount || !concept || !date) return;
 
-    try {
-      const newTx = await transactionsApi.createTransaction({
-        amount: parseFloat(amount),
-        concept,
-        date: new Date(date).toISOString(), // 3. Enviamos la fecha real seleccionada
-        type,
-        categoryId: Number(selectedCatId),
-      });
-      setTransactions([newTx, ...transactions]);
+    const dataPayload: CreateTransactionData = {
+      // Tipado explícito ayuda
+      amount: parseFloat(amount),
+      concept,
+      date: new Date(date).toISOString(),
+      type,
+      categoryId: Number(selectedCatId),
+    };
 
-      // Limpiar form
-      setAmount("");
-      setConcept("");
-      // Reseteamos a la fecha de hoy por comodidad
-      setDate(new Date().toISOString().split("T")[0]);
+    try {
+      if (editingId) {
+        const updatedTx = await transactionsApi.updateTransaction(
+          editingId,
+          dataPayload,
+        );
+        setTransactions(
+          transactions.map((t) => (t.id === editingId ? updatedTx : t)),
+        );
+      } else {
+        const newTx = await transactionsApi.createTransaction(dataPayload);
+        setTransactions([newTx, ...transactions]);
+      }
+      handleCancelEdit();
     } catch (error) {
+      console.error(error);
       alert("Error al guardar");
     }
   };
@@ -112,32 +167,66 @@ function App() {
     if (!confirm("¿Borrar?")) return;
     await transactionsApi.deleteTransaction(id);
     setTransactions(transactions.filter((t) => t.id !== id));
+    if (editingId === id) handleCancelEdit();
   };
 
-  if (loading)
-    return (
-      <div className="p-10 text-center">Cargando cerebro financiero... 🧠</div>
-    );
+  if (loading) return <div className="p-10 text-center">Cargando...</div>;
 
   return (
     <div className="min-h-screen bg-gray-50 p-4 md:p-8 font-sans text-gray-800">
       <div className="max-w-6xl mx-auto space-y-8">
-        {/* --- SECCIÓN 1: TARJETAS DE RESUMEN --- */}
+        {/* ENCABEZADO Y FILTROS */}
+        <div className="flex flex-col md:flex-row justify-between items-center gap-4">
+          <h1 className="text-3xl font-bold text-gray-800">Panel Financiero</h1>
+
+          {/* 🔥 NUEVO: Selector de Fecha */}
+          <div className="flex gap-2 bg-white p-2 rounded-lg shadow-sm">
+            <select
+              className="bg-transparent font-medium text-gray-700 outline-none cursor-pointer"
+              value={filterMonth}
+              onChange={(e) => setFilterMonth(Number(e.target.value))}
+            >
+              {MONTHS.map((m, i) => (
+                <option key={i} value={i}>
+                  {m}
+                </option>
+              ))}
+            </select>
+            <span className="text-gray-300">|</span>
+            <select
+              className="bg-transparent font-medium text-gray-700 outline-none cursor-pointer"
+              value={filterYear}
+              onChange={(e) => setFilterYear(Number(e.target.value))}
+            >
+              <option value="2025">2025</option>
+              <option value="2026">2026</option>
+              <option value="2027">2027</option>
+            </select>
+          </div>
+        </div>
+
+        {/* RESUMEN (Ahora muestra datos filtrados) */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div className="bg-white p-6 rounded-xl shadow-sm border-l-4 border-green-500">
-            <p className="text-gray-500 text-sm">Ingresos Totales</p>
+            <p className="text-gray-500 text-sm">
+              Ingresos ({MONTHS[filterMonth]})
+            </p>
             <p className="text-2xl font-bold text-green-600">
               +${totalIncome.toFixed(2)}
             </p>
           </div>
           <div className="bg-white p-6 rounded-xl shadow-sm border-l-4 border-red-500">
-            <p className="text-gray-500 text-sm">Gastos Totales</p>
+            <p className="text-gray-500 text-sm">
+              Gastos ({MONTHS[filterMonth]})
+            </p>
             <p className="text-2xl font-bold text-red-600">
               -${totalExpense.toFixed(2)}
             </p>
           </div>
           <div className="bg-white p-6 rounded-xl shadow-sm border-l-4 border-blue-600">
-            <p className="text-gray-500 text-sm">Balance Final</p>
+            <p className="text-gray-500 text-sm">
+              Balance ({MONTHS[filterMonth]})
+            </p>
             <p
               className={`text-2xl font-bold ${balance >= 0 ? "text-blue-600" : "text-red-600"}`}
             >
@@ -146,62 +235,69 @@ function App() {
           </div>
         </div>
 
-        {/* --- SECCIÓN 2: GRÁFICA Y FORMULARIO --- */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          {/* COLUMNA IZQUIERDA: Gráfica + Formulario */}
+          {/* IZQUIERDA: GRÁFICA + FORMULARIO */}
           <div className="lg:col-span-1 space-y-6">
-            {/* Gráfica */}
-            <div className="bg-white p-6 rounded-xl shadow-sm flex flex-col items-center">
-              <h3 className="font-bold mb-4 text-gray-700">
-                Gastos por Categoría
+            <div className="bg-white p-6 rounded-xl shadow-sm h-72 flex flex-col">
+              <h3 className="font-bold mb-2 text-gray-700 text-center text-sm">
+                Gastos de {MONTHS[filterMonth]}
               </h3>
               {chartData.length > 0 ? (
-                <div className="h-64 w-full">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <PieChart>
-                      <Pie
-                        data={chartData}
-                        cx="50%"
-                        cy="50%"
-                        innerRadius={60}
-                        outerRadius={80}
-                        paddingAngle={5}
-                        dataKey="value"
-                      >
-                        {chartData.map((entry, index) => (
-                          <Cell
-                            key={`cell-${index}`}
-                            fill={COLORS[index % COLORS.length]}
-                          />
-                        ))}
-                      </Pie>
-                      <Tooltip
-                        formatter={(value?: number) => [`$${value}`, "Monto"]}
-                      />
-                      <Legend />
-                    </PieChart>
-                  </ResponsiveContainer>
-                </div>
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie
+                      data={chartData}
+                      cx="50%"
+                      cy="50%"
+                      innerRadius={50}
+                      outerRadius={70}
+                      paddingAngle={5}
+                      dataKey="value"
+                    >
+                      {chartData.map((_, index) => (
+                        <Cell
+                          key={`cell-${index}`}
+                          fill={COLORS[index % COLORS.length]}
+                        />
+                      ))}
+                    </Pie>
+                    <Tooltip
+                      formatter={(value?: number) => [`$${value}`, "Monto"]}
+                    />
+                  </PieChart>
+                </ResponsiveContainer>
               ) : (
-                <div className="h-64 flex items-center justify-center text-gray-400 text-sm">
-                  Registra gastos para ver la gráfica 📊
+                <div className="flex-1 flex items-center justify-center text-gray-400 text-xs">
+                  Sin gastos este mes
                 </div>
               )}
             </div>
 
-            {/* Formulario */}
-            <div className="bg-white p-6 rounded-xl shadow-sm">
-              <h2 className="font-bold mb-4">Nuevo Movimiento</h2>
+            {/* FORMULARIO (Sin cambios mayores) */}
+            <div
+              className={`bg-white p-6 rounded-xl shadow-sm border-2 ${editingId ? "border-yellow-400" : "border-transparent"} transition-colors`}
+            >
+              <div className="flex justify-between items-center mb-4">
+                <h2 className="font-bold">
+                  {editingId ? "✏️ Editando" : "Nuevo Movimiento"}
+                </h2>
+                {editingId && (
+                  <button
+                    onClick={handleCancelEdit}
+                    className="text-xs underline"
+                  >
+                    Cancelar
+                  </button>
+                )}
+              </div>
               <form onSubmit={handleSave} className="space-y-3">
-                {/* 4. Selector de Fecha */}
                 <input
                   type="date"
                   required
-                  className="w-full p-2 border rounded bg-gray-50 font-medium text-gray-700"
+                  className="w-full p-2 border rounded bg-gray-50"
                   value={date}
                   onChange={(e) => setDate(e.target.value)}
                 />
-
                 <div className="flex gap-2">
                   <button
                     type="button"
@@ -246,22 +342,25 @@ function App() {
                 </select>
                 <button
                   disabled={!amount || !selectedCatId}
-                  className="w-full bg-black text-white py-2 rounded font-bold disabled:opacity-50 hover:bg-gray-800 transition"
+                  className={`w-full text-white py-2 rounded font-bold disabled:opacity-50 ${editingId ? "bg-yellow-500" : "bg-black"}`}
                 >
-                  Guardar
+                  {editingId ? "Actualizar" : "Guardar"}
                 </button>
               </form>
             </div>
           </div>
 
-          {/* COLUMNA DERECHA: Historial */}
+          {/* DERECHA: HISTORIAL FILTRADO */}
           <div className="lg:col-span-2">
-            <h2 className="text-xl font-bold mb-4">Historial de Movimientos</h2>
+            <h2 className="text-xl font-bold mb-4">
+              Movimientos de {MONTHS[filterMonth]}
+            </h2>
             <div className="space-y-3">
-              {transactions.map((t) => (
+              {/* OJO: Aquí iteramos sobre 'filteredTransactions', no sobre todas */}
+              {filteredTransactions.map((t) => (
                 <div
                   key={t.id}
-                  className="bg-white p-4 rounded-xl shadow-sm flex justify-between items-center hover:shadow-md transition"
+                  className={`bg-white p-4 rounded-xl shadow-sm flex justify-between items-center hover:shadow-md transition border ${editingId === t.id ? "border-yellow-400 bg-yellow-50" : "border-transparent"}`}
                 >
                   <div className="flex items-center gap-4">
                     <div className="w-12 h-12 bg-gray-50 rounded-full flex items-center justify-center text-2xl">
@@ -275,25 +374,33 @@ function App() {
                       </p>
                     </div>
                   </div>
-                  <div className="text-right">
+                  <div className="flex flex-col items-end gap-1">
                     <p
                       className={`font-bold text-lg ${t.type === "INCOME" ? "text-green-600" : "text-red-600"}`}
                     >
                       {t.type === "INCOME" ? "+" : "-"}$
                       {Number(t.amount).toFixed(2)}
                     </p>
-                    <button
-                      onClick={() => handleDelete(t.id)}
-                      className="text-xs text-red-400 hover:text-red-600 underline"
-                    >
-                      Eliminar
-                    </button>
+                    <div className="flex gap-3 text-xs">
+                      <button
+                        onClick={() => handleEditClick(t)}
+                        className="text-blue-500 hover:text-blue-700 font-medium"
+                      >
+                        Editar
+                      </button>
+                      <button
+                        onClick={() => handleDelete(t.id)}
+                        className="text-red-400 hover:text-red-600"
+                      >
+                        Eliminar
+                      </button>
+                    </div>
                   </div>
                 </div>
               ))}
-              {transactions.length === 0 && (
+              {filteredTransactions.length === 0 && (
                 <p className="text-center text-gray-400 mt-10">
-                  No hay datos aún.
+                  No hay movimientos en este mes.
                 </p>
               )}
             </div>
