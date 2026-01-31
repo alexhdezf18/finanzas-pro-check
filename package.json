@@ -19,7 +19,9 @@
   },
   "homepage": "https://github.com/alexhdezf18/finanzas-pro-check#readme",
   "devDependencies": {
+    "@types/bcrypt": "^6.0.0",
     "@types/node": "^24.10.1",
+    "@types/passport-jwt": "^4.0.1",
     "prisma": "^5.22.0",
     "ts-node": "^10.9.2",
     "tsx": "^4.21.0",
@@ -29,6 +31,11 @@
     "seed": "ts-node prisma/seed.ts"
   },
   "dependencies": {
-    "@prisma/client": "^5.22.0"
+    "@nestjs/jwt": "^11.0.2",
+    "@nestjs/passport": "^11.0.5",
+    "@prisma/client": "^5.22.0",
+    "bcrypt": "^6.0.0",
+    "passport": "^0.7.0",
+    "passport-jwt": "^4.0.1"
   }
 }

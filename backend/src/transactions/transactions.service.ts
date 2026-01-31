@@ -7,80 +7,68 @@ import { CreateTransactionDto } from './dto/create-transaction.dto';
 import { UpdateTransactionDto } from './dto/update-transaction.dto';
 import { PrismaService } from 'src/prisma/prisma.service'; // <--- Importar Prisma
 
+// ... imports
+
 @Injectable()
 export class TransactionsService {
   constructor(private prisma: PrismaService) {}
 
-  async create(createTransactionDto: CreateTransactionDto) {
-    const userId = 1; // Hardcodeado por ahora
-
+  // Recibe userId como argumento
+  async create(createTransactionDto: CreateTransactionDto, userId: number) {
     try {
+      const categoryExists = await this.prisma.category.findUnique({
+        where: { id: createTransactionDto.categoryId },
+      });
+
+      if (!categoryExists)
+        throw new NotFoundException('Categoría no encontrada');
+
       return await this.prisma.transaction.create({
         data: {
-          amount: createTransactionDto.amount,
-          concept: createTransactionDto.concept,
-          date: new Date(createTransactionDto.date), // Conversión importante
-          type: createTransactionDto.type,
-          categoryId: createTransactionDto.categoryId,
-          userId: userId,
+          ...createTransactionDto,
+          date: new Date(createTransactionDto.date),
+          userId: userId, // 🔥 Usamos el ID real
         },
       });
     } catch (error) {
-      // Manejamos el error P2003 específicamente
-      if (error.code === 'P2003') {
-        throw new NotFoundException(
-          `No se pudo crear la transacción: La categoría (ID ${createTransactionDto.categoryId}) o el usuario no existen.`,
-        );
-      }
-
-      // Si es otro error, que lo lance normal
+      if (error.code === 'P2003') throw new NotFoundException('Error de FK');
       throw error;
     }
   }
 
-  findAll() {
-    const userId = 1;
+  findAll(userId: number) {
     return this.prisma.transaction.findMany({
-      where: { userId },
-      include: { category: true }, // ¡Truco! Traemos el nombre de la categoría de una vez
-      orderBy: { date: 'desc' }, // Las más recientes primero
+      where: { userId }, // 🔥 Filtra solo TUS transacciones
+      include: { category: true },
+      orderBy: { date: 'desc' },
     });
   }
 
-  findOne(id: number) {
-    return this.prisma.transaction.findUnique({ where: { id } });
-  }
-
-  async update(id: number, updateTransactionDto: UpdateTransactionDto) {
-    const userId = 1; // Hardcodeado
-
-    // 1. Verificar que la transacción exista y sea de este usuario
+  async update(
+    id: number,
+    updateTransactionDto: UpdateTransactionDto,
+    userId: number,
+  ) {
+    // Validar propiedad
     const transaction = await this.prisma.transaction.findFirst({
       where: { id, userId },
     });
-
     if (!transaction) throw new NotFoundException('Transacción no encontrada');
 
-    // 2. Si vienen fechas, asegúrate de convertirlas a objeto Date
+    // ... lógica de update (igual que antes pero pasando userId si es necesario)
     const dataToUpdate: any = { ...updateTransactionDto };
-    if (dataToUpdate.date) {
-      dataToUpdate.date = new Date(dataToUpdate.date);
-    }
+    if (dataToUpdate.date) dataToUpdate.date = new Date(dataToUpdate.date);
 
-    // 3. Actualizar
     return this.prisma.transaction.update({
       where: { id },
       data: dataToUpdate,
     });
   }
 
-  async remove(id: number) {
-    const userId = 1;
-    // Verificar que sea de este usuario antes de borrar
+  async remove(id: number, userId: number) {
     const transaction = await this.prisma.transaction.findFirst({
       where: { id, userId },
     });
-
     if (!transaction) throw new NotFoundException('Transacción no encontrada');
 
     return this.prisma.transaction.delete({ where: { id } });

@@ -1,5 +1,24 @@
 @Host = http://localhost:3000
 
+### 1. Registrar Usuario Nuevo
+POST {{Host}}/auth/register
+Content-Type: application/json
+
+{
+  "name": "Alex",
+  "email": "alex@test.com",
+  "password": "password123"
+}
+
+### 2. Iniciar Sesión (Debería devolver un access_token)
+POST {{Host}}/auth/login
+Content-Type: application/json
+
+{
+  "email": "alex@test.com",
+  "password": "password123"
+}
+
 ### Crear Gasto (Asegúrate que categoryId exista)
 POST {{Host}}/transactions
 Content-Type: application/json
