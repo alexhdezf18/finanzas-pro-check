@@ -1,8 +1,15 @@
 import axios from "axios";
 
-// Creamos una instancia "oficial" para conectarnos a nuestra API
-const api = axios.create({
+const client = axios.create({
   baseURL: "http://localhost:3000",
 });
 
-export default api;
+client.interceptors.request.use((config) => {
+  const token = localStorage.getItem("token");
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`;
+  }
+  return config;
+});
+
+export default client;
